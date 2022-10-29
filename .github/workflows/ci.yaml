@@ -1,0 +1,96 @@
+name: 'Continuous Integration'
+
+on:
+  push:
+    branches:
+      - master
+      - add-ci # For testing
+  # workflow_dispatch:
+
+
+jobs:
+  build-binaries:
+    name: 'Build binaries'
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ ubuntu-latest, windows-latest, macos-latest]
+    # runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: setup node
+        uses: actions/setup-node@v3.5.1
+        with:
+          node-version: 17
+      - run: npm config set legacy-peer-deps true      
+      - run: npm install
+      - run: npm run package
+      - uses: actions/upload-artifact@master
+        with:
+          name: binaries
+          path: ${{ GITHUB.WORKSPACE }}/src-tauri/target/release/bundle/*/codemacros*
+
+      # - name: Compress releases
+      #   run: zip -r /home/runner/work/bad-cms/binaries.zip $GITHUB_WORKSPACE/src-tauri/target/release/bundle/*/codemacros*
+      # - name: Delete old release
+      #   uses: Archaholic/action-delete-release@v1
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN  }}
+      #   with:
+      #     tag_name: rolling
+      # - name: Update tag
+      #   uses: EndBug/latest-tag@latest
+      #   with:
+      #     ref: rolling
+      # - name: Release
+      #   uses: softprops/action-gh-release@v1
+      #   with:
+      #     name: Rolling release
+      #     prerelease: true
+      #     tag_name: rolling
+      #     body: "Latest commit: ${{ github.event.head_commit.message }}"
+      #     # files: |
+      #       # /home/runner/work/bad-cms/binaries.zip
+      #       # ${{ GITHUB.WORKSPACE }}/src-tauri/target/release/bundle/*/codemacros*
+      #     files: ${{ GITHUB.WORKSPACE }}/src-tauri/target/release/bundle/*/codemacros*
+      # - name: Upload Artifacts
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: binaries
+      #     path: ${{ GITHUB.WORKSPACE }}/src-tauri/target/release/bundle/*/codemacros*
+  upload-binaries:
+    needs: build-binaries
+    name: 'Upload binaries'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@master
+        with:
+          name: binaries
+          path: ${{ GITHUB.WORKSPACE }}/binaries
+      - name: Compress releases
+        run: zip -r /home/runner/work/bad-cms/binaries.zip $GITHUB_WORKSPACE/binaries/*
+      - name: Delete old release
+        uses: Archaholic/action-delete-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN  }}
+        with:
+          tag_name: rolling
+      - name: Update tag
+        uses: EndBug/latest-tag@latest
+        with:
+          ref: rolling
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Rolling release
+          prerelease: true
+          tag_name: rolling
+          body: "Latest commit: ${{ github.event.head_commit.message }}"
+          # files: |
+            # /home/runner/work/bad-cms/binaries.zip
+            # ${{ GITHUB.WORKSPACE }}/src-tauri/target/release/bundle/*/codemacros*
+          files: |
+            ${{ GITHUB.WORKSPACE }}/binaries/*/*
+            /home/runner/work/bad-cms/binaries.zip
